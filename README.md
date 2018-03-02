@@ -1,5 +1,4 @@
 
-============
  PyGitLatex
 ============
 
@@ -14,15 +13,26 @@ using Git. To some extent, this is an already solved
 problem: see the excellent ShareLatex/Overleaf software.
 And, further, it should be noted that PyGitLatex is **not**
 a replacement for ShareLatex/Overleaf. However, for some
-users (meaning the author, at least) the 
-ShareLatex/Overleaf framework has a few disadvantages.
-PyGitLatex aims to correct these by providing the following
-features:
+users (meaning at least the author) the ShareLatex/Overleaf
+framework has a few disadvantages. PyGitLatex aims to 
+correct these by providing the following features:
 
 - Direct control of project history (i.e. git respository)
-- Use of user's preferred/existing Latex toolchain
+- Allowing the user's preferred/existing Latex toolchain
 - No required cloud-based storage or computing
 
+To do so, PyGitLatex provides a simple graphical interface
+including some of the basic features of both Git and Latex.
+Advanced users of either software are free to make changes 
+using whatever toolchain they are familiar with. History
+will be tracked through a standard Git repository and 
+therefore may be manipulated using any appropriate 
+commandline or GUI either alongside or instead of PyGitLatex.
+Similarly, the goal is to require no particular Latex 
+packages, settings, or editor/viewer. The only constraint
+is that all collaborators on a particular project are 
+familiar enough with their chosen environment to compile
+the package independently. 
 
 Installation
 ------------

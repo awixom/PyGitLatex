@@ -4,6 +4,7 @@ from pyforms.gui.basewidget import BaseWidget
 from pyforms.gui.controls.ControlButton import ControlButton
 from pyforms.gui.controls.ControlDir import ControlDir
 from pyforms.gui.controls.ControlFile import ControlFile
+from pyforms.gui.controls.ControlText import ControlText
 from pyforms.gui.controls.ControlTextArea import ControlTextArea
 
 class PyGitLatex(BaseWidget):
@@ -22,25 +23,60 @@ class PyGitLatex(BaseWidget):
         self.btnGitPull = ControlButton('Pull')
         self.btnGitPush = ControlButton('Push')
         self.txaGitConsole = ControlTextArea('Git Output')
+        self.txtGitCommand = ControlText('Git Command')
+        self.btnGitRun = ControlButton('Run Command')
+        self.btnGitClear = ControlButton('Clear Ouput')
         
-        self.filLatexFile = ControlFile('Latex File')
-        self.btnLatexCompile = ControlButton('Compile')
-        self.btnLatexView = ControlButton('View')
-        self.btnLatexEdit = ControlButton('Edit')
-        self.txaLatexConsole = ControlTextArea('Latex Output')
+        self.filTexFile = ControlFile('Latex File')
+        self.btnTexCompile = ControlButton('Compile')
+        self.btnTexView = ControlButton('View')
+        self.btnTexEdit = ControlButton('Edit')
+        self.btnTexBlame = ControlButton('Blame')
+        self.btnTexSrcDiff = ControlButton('Source Diff')
+        self.btnTexPdfDiff = ControlButton('PDF Diff')
+        self.txaTexConsole = ControlTextArea('Latex Output')
+        self.txtTexCommand = ControlText('Latex Command')
+        self.btnTexRun = ControlButton('Run Command')
+        self.btnTexClear = ControlButton('Clear Ouput')
         
-        # set up look of the GUI
+        # set up the layout of the GUI
         
         self.set_margin(10)
-        self.formset = ['filProjectDir', \
-            {'a:Git':[('btnGitStatus','btnGitAdd','btnGitCommit'), \
-                      ('btnGitLog','btnGitPull','btnGitPush'), \
-                      'txaGitConsole'], \
-             'b:Latex':['filLatexFile', \
-                        ('btnLatexCompile','btnLatexView','btnLatexEdit'), \
-                        'txaLatexConsole'] \
-            }]
+        self.formset = [ \
+            'filProjectDir', \
+            {'a:Git':
+                [('btnGitStatus','btnGitAdd','btnGitCommit'), \
+                 ('btnGitLog','btnGitPull','btnGitPush'), \
+                 'txaGitConsole', \
+                 'txtGitCommand', \
+                 (' ','btnGitClear','btnGitRun')], \
+             'b:Latex':
+                ['filTexFile', \
+                 ('btnTexCompile','btnTexView','btnTexEdit'), \
+                 ('btnTexBlame','btnTexSrcDiff','btnTexPdfDiff'),\
+                 'txaTexConsole', \
+                 'txtTexCommand', \
+                 (' ','btnTexClear','btnTexRun')] \
+            } \
+        ]
+        self.mainmenu = [ \
+            {'File': [{'Initialize Project':self.init_project}, \
+                      {'Clone Project':self.clone_project}, \
+                      '-', \
+                      {'Exit':self.exit_app}] \
+            } \
+        ]
+            
+    def init_project(self):
+        pass
+    
+    def clone_project(self):
+        pass
+    
+    def exit_app(self):
+        exit()
+
 
 #Execute the application
 if __name__ == "__main__":
-    start_app(PyGitLatex, geometry=(200,200,620,420) )
+    start_app(PyGitLatex, geometry=(100,100,620,520) )
