@@ -48,9 +48,12 @@ class GitAddFiles(BaseWidget):
     def __init__(self, repo):
         super(GitAddFiles,self).__init__('Git: Add Files')
         self.repo = repo
-        self.lstFileList = ControlList('Select files to add:')
+        self.lstModFiles = ControlList('Modified Files:')
+        for item in self.repo.index.diff(None):
+            self.lstModFiles += [item.a_path]
+        self.lstNewFiles = ControlList('Untracked Files:')
         for file in self.repo.untracked_files:
-            self.lstFileList += [file]
+            self.lstNewFiles += [file]
         self.btnAddFiles = ControlButton('Add Files')
         self.btnAddFiles.value = self.add_files
         self.btnAddAllFiles = ControlButton('Add All Files')
@@ -58,13 +61,17 @@ class GitAddFiles(BaseWidget):
         self.btnCancel = ControlButton('Cancel')
         self.btnCancel.value = self.close
         self.set_margin(10)
-        self.formset = ['lstFileList', \
+        self.formset = ['info:Select files to add to the project.', \
+                        'lstModFiles', \
+                        'lstNewFiles', \
                         ('btnAddAllFiles','btnAddFiles'), \
                         'btnCancel']
         
     def add_files(self):
-        files_to_add = [self.repo.untracked_files[x] \
-                        for x in self.lstFileList.selected_rows_indexes]
+        files_to_add = [self.lstModFiles.value[x] \
+                        for x in self.lstModFiles.selected_rows_indexes]
+        files_to_add += [self.lstNewFiles.value[x] \
+                         for x in self.lstNewFiles.selected_rows_indexes]
         for file in files_to_add:
             self.repo.git.add(file)
         self.close()
@@ -72,6 +79,8 @@ class GitAddFiles(BaseWidget):
     def add_all_files(self):
         for file in self.repo.untracked_files:
             self.repo.git.add(file)
+        for item in self.repo.index.diff(None):
+            self.repo.git.add(item.a_path)
         self.close()
 
 class GitCommit(BaseWidget):
@@ -79,23 +88,22 @@ class GitCommit(BaseWidget):
     def __init__(self, repo):
         super(GitCommit,self).__init__('Git: Commit message')
         self.repo = repo
-        self.txaCommitMsg = ControlTextArea('Input a commit message')
+        self.txtCommitMsg = ControlText()
         self.btnCommit = ControlButton('Commit')
         self.btnCommit.value = self.git_commit
         self.btnCancel = ControlButton('Cancel')
         self.btnCancel.value = self.close
         self.set_margin(10)
-        self.formset = ['txaCommitMsg',('btnCommit','btnCancel')]
+        self.formset = ['info:Input a commit message', \
+                        'txtCommitMsg',('btnCommit','btnCancel')]
         
     def git_commit(self):
-        print('test'+self.txaCommitMsg.value+'test')
-        if not self.txaCommitMsg.value:
-            print('in not')
+        if not self.txtCommitMsg.value:
             ntwin = WarnWindow('Error: Cannot have an empty commit '\
                                + 'message. Please try again.')
             ntwin.show()
         else:
-            self.repo.git.commit('-m',self.txaCommitMsg.value)
+            self.repo.git.commit('-m',self.txtCommitMsg.value)
             self.close()
         
 class PyGitLatex(BaseWidget):
@@ -241,7 +249,7 @@ class PyGitLatex(BaseWidget):
         if self.repo is None:
             self.update_git_console(output='Please open a project.')
             return
-        if not self.repo.untracked_files:
+        if not self.repo.untracked_files and not self.repo.is_dirty():
             self.update_git_console(command='git add', \
                                     output='No files to add.')
             return
