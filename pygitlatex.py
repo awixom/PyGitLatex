@@ -1,3 +1,4 @@
+#! python3
 
 from pyforms.gui.appmanager import start_app
 from pyforms.gui.basewidget import BaseWidget
@@ -10,12 +11,17 @@ from pyforms.gui.controls.ControlTextArea import ControlTextArea
 
 from git import Repo, InvalidGitRepositoryError
 from AnyQt import QtCore
+from AnyQt.QtWidgets import QFileDialog
+import os
 
-class WarnWindow(BaseWidget):
+os.environ['GIT_ASKPASS'] = \
+    'D:\Andy\Documents\PyGitLatex\pygitlatex_gitaskpass.py'
+
+class MessageWindow(BaseWidget):
     
-    def __init__(self, msg, title=''):
-        super(WarnWindow, self).__init__(title)
-        self.btnOk = ControlButton('Ok')
+    def __init__(self, msg, title='PyGitLatex Message'):
+        super(MessageWindow, self).__init__(title)
+        self.btnOk = ControlButton('Okay')
         self.btnOk.value = self.close
         self.set_margin(10)
         self.formset = [msg,(' ','btnOk',' ')]
@@ -49,9 +55,11 @@ class GitAddFiles(BaseWidget):
         super(GitAddFiles,self).__init__('Git: Add Files')
         self.repo = repo
         self.lstModFiles = ControlList('Modified Files:')
+        self.lstModFiles.readonly = True
         for item in self.repo.index.diff(None):
             self.lstModFiles += [item.a_path]
         self.lstNewFiles = ControlList('Untracked Files:')
+        self.lstNewFiles.readonly = True
         for file in self.repo.untracked_files:
             self.lstNewFiles += [file]
         self.btnAddFiles = ControlButton('Add Files')
@@ -99,8 +107,8 @@ class GitCommit(BaseWidget):
         
     def git_commit(self):
         if not self.txtCommitMsg.value:
-            ntwin = WarnWindow('Error: Cannot have an empty commit '\
-                               + 'message. Please try again.')
+            ntwin = MessageWindow('Error: Cannot have an empty commit '\
+                                  + 'message. Please try again.')
             ntwin.show()
         else:
             self.repo.git.commit('-m',self.txtCommitMsg.value)
@@ -115,6 +123,9 @@ class PyGitLatex(BaseWidget):
         
         self.repo = None
         self.rgit = None
+        self.remote_name = 'origin'
+        self.branch_name = 'master'
+        self.local_proj_name = None
 
         # define controls
         
@@ -122,13 +133,15 @@ class PyGitLatex(BaseWidget):
         self.dirProjectDir.click = self.set_project_dir
         
         self.btnGitStatus = ControlButton('Status')
-        self.btnGitStatus.value = self.print_git_status
+        self.btnGitStatus.value = self.git_status
         self.btnGitAdd = ControlButton('Add')
         self.btnGitAdd.value = self.git_add
         self.btnGitCommit = ControlButton('Commit')
         self.btnGitCommit.value = self.git_commit
         self.btnGitLog = ControlButton('Log')
+        self.btnGitLog.value = self.git_log
         self.btnGitPull = ControlButton('Pull')
+        self.btnGitPull.value = self.git_pull
         self.btnGitPush = ControlButton('Push')
         self.txaGitConsole = ControlTextArea('Git Output')
         self.txtGitCommand = ControlText('Git Command')
@@ -184,17 +197,23 @@ class PyGitLatex(BaseWidget):
         try:
             self.repo = Repo(self.dirProjectDir.value)
             self.rgit = self.repo.git
+            self.local_proj_name = self.dirProjectDir.value.split(os.sep)[-1]
         except (InvalidGitRepositoryError):
             msg = 'No git repository was detected in this directory, ' \
                 + 'would you like to initialize one here?'
             title = 'Warning: No git repository detected'
-            ynwin = YesNoDialog(msg, self.init_project, \
-                                self.no_git_repo_detected, title)
+            ynwin = YesNoDialog(msg, \
+                        lambda : self.init_project(self.dirProjectDir.value), \
+                        self.no_git_repo_detected, title)
             ynwin.show()
     
-    def init_project(self):
-        self.repo = Repo.init(self.dirProjectDir.value)
+    def init_project(self, directory=None):
+        if not directory:
+            directory = str(QFileDialog.getExistingDirectory())
+            self.dirProjectDir.value = directory
+        self.repo = Repo.init(directory)
         self.rgit = self.repo.git
+        self.local_proj_name = directory.split(os.sep)[-1]
     
     def no_git_repo_detected(self):
         self.dirProjectDir.value = ''
@@ -202,9 +221,59 @@ class PyGitLatex(BaseWidget):
             + 'existing project git repository or initialize a new one.' \
             + 'In order to clone an existing project, please use the ' \
             + '"File->Clone Project" command.')
+    
+    def check_repo(self, level=3):
         
+        check = True
+        
+        # level one check: do we have a project open, if not ask the user to
+        # open one
+        
+        if level >= 1 and check:
+            if self.repo:
+                check = True
+            else:
+                check = False
+                self.update_git_console(output='Please open a project.')
+        
+        # level two check: is there a correctly named remote in the repo? 
+        # If not, ask if they want to create one
+        
+        if level >= 2 and check:
+            try: 
+                self.repo.remotes[self.remote_name]
+                check = True
+            except (IndexError):
+                check = False
+                ynwin = YesNoDialog(['No project remote was detected.', \
+                    'Currently looking for a remote called: '\
+                        + self.remote_name, \
+                    'Would you like to create a new remote repository?', \
+                    'Select no if you want to try and fix the problem ' \
+                        + ' a different way.'], \
+                    yes_action=self.create_project_remote_rpo, \
+                    title='No Remote Detected')
+                ynwin.show()
+                
+        # level three check: can we actually use the remote? try to fetch it,
+        # if it doesn't work, notify and see if they want us to try and 
+        # auto-fix the remote url
+        
+        
+        
+        return check
+    
     def clone_project(self):
         pass
+    
+    def create_project_remote_repo(self):
+        out = QFileDialog.getSaveFileName(self, \
+                                          'Choose a bare git repository', \
+                                          self.local_proj_name+'.git', \
+                                          'Bare git repo (*.git)')
+        remote_loc = self.rgit.polish_url(out[0])
+        self.repo.clone(remote_loc, bare=True)
+        self.rgit.remote('add', self.remote_name, remote_loc)
     
     def update_git_console(self, command=None, output=None):
         if command is not None:
@@ -215,21 +284,13 @@ class PyGitLatex(BaseWidget):
     def clear_git_console(self):
         self.txaGitConsole.value = ''
         
-    def print_git_status(self):
-        if self.rgit is None:
-            self.update_git_console(output='Please open a project.')
-        else:
-            self.update_git_console(command='git status', \
-                                    output=self.rgit.status())
-    
     def check_git_command_event(self, event):
         if event.key() == QtCore.Qt.Key_Return \
         or event.key() == QtCore.Qt.Key_Enter:
             self.parse_git_command()
         
     def parse_git_command(self):
-        if self.rgit is None:
-            self.update_git_console(output='Please open a project.')
+        if not self.check_repo(1):
             return
         command = self.txtGitCommand.value
         parts = command.split()
@@ -246,8 +307,7 @@ class PyGitLatex(BaseWidget):
         self.txtGitCommand.value = ''
     
     def git_add(self):
-        if self.repo is None:
-            self.update_git_console(output='Please open a project.')
+        if not self.check_repo(1):
             return
         if not self.repo.untracked_files and not self.repo.is_dirty():
             self.update_git_console(command='git add', \
@@ -257,8 +317,7 @@ class PyGitLatex(BaseWidget):
         gawin.show()
         
     def git_commit(self):
-        if self.repo is None:
-            self.update_git_console(output='Please open a project.')
+        if not self.check_repo(1):
             return
         if not self.repo.is_dirty():
             self.update_git_console(command='git commit', 
@@ -268,14 +327,25 @@ class PyGitLatex(BaseWidget):
         gcwin = GitCommit(self.repo)
         gcwin.show()
         
+    def git_log(self):
+        if self.check_repo(1):
+            self.update_git_console('git log', self.rgit.log())
+        
+    def git_pull(self):
+        if self.check_repo(2):
+            out = self.rgit.pull(self.remote_name, self.branch_name)
+            self.update_git_console('git pull', out)
+        
+    def git_status(self):
+        if self.check_repo(1):
+            self.update_git_console(command='git status', \
+                                    output=self.rgit.status())
+            
     def exit_app(self):
         self.close()
         exit()
-        
-        
-        
-        
 
-#Execute the application
+# run the app if this is executed as a script
+        
 if __name__ == "__main__":
     start_app(PyGitLatex, geometry=(100,100,620,520) )
