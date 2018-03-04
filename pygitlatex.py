@@ -9,7 +9,7 @@ from pyforms.gui.controls.ControlList import ControlList
 from pyforms.gui.controls.ControlText import ControlText
 from pyforms.gui.controls.ControlTextArea import ControlTextArea
 
-from git import Repo, InvalidGitRepositoryError
+from git import Repo, InvalidGitRepositoryError, GitCommandError
 from AnyQt import QtCore
 from AnyQt.QtWidgets import QFileDialog
 import os
@@ -28,7 +28,8 @@ class MessageWindow(BaseWidget):
 
 class YesNoDialog(BaseWidget):
     
-    def __init__(self, msg, yes_action=None, no_action=None, title=''):
+    def __init__(self, msg, yes_action=None, no_action=None, \
+                 title='PyGitLatex Dialog'):
         super(YesNoDialog,self).__init__(title)
         self.yes_action = yes_action
         self.no_action = no_action
@@ -143,6 +144,7 @@ class PyGitLatex(BaseWidget):
         self.btnGitPull = ControlButton('Pull')
         self.btnGitPull.value = self.git_pull
         self.btnGitPush = ControlButton('Push')
+        self.btnGitPush.value = self.git_push
         self.txaGitConsole = ControlTextArea('Git Output')
         self.txtGitCommand = ControlText('Git Command')
         self.txtGitCommand.key_pressed_event = self.check_git_command_event
@@ -255,13 +257,34 @@ class PyGitLatex(BaseWidget):
                     title='No Remote Detected')
                 ynwin.show()
                 
-        # level three check: can we actually use the remote? try to fetch it,
-        # if it doesn't work, notify and see if they want us to try and 
-        # auto-fix the remote url
-        
-        
-        
         return check
+    
+    def check_git_failure(self, err):
+        
+        # check for polished remote url fix... (at the least) this can happen
+        # on windows when the python and git installations are mixed between
+        # native windows and cygwin
+        
+        curr_url = self.repo.remotes[self.remote_name].url
+        polished_url = self.rgit.polish_url(curr_url)
+        if curr_url != polished_url:
+            YesNoDialog('There seems to be a problem with the git repo \n' \
+                        +'git repo set up. Remote URL polishing has been \n' \
+                        +'detected as a possible fix. Would you like to \n' \
+                        +'try? The current remote URL will be replaced by \n' \
+                        +'the polished one. Selecte No to view the git \n' \
+                        +'error instead.\n\n' \
+                        +'Current URL: ' + curr_url + '\n' \
+                        +'Polished URL: ' + polished_url, \
+                        yes_action=self.polish_remote_url, 
+                        no_action=MessageWindow(err.stderr).show).show()
+            return
+        
+        # unhandled problems
+        
+        MessageWindow('Unhandled git error detected, details below. \n\n' \
+                      + err.stderr, \
+                      title='PyGitLatex: Git Error').show()
     
     def clone_project(self):
         pass
@@ -275,6 +298,11 @@ class PyGitLatex(BaseWidget):
         self.repo.clone(remote_loc, bare=True)
         self.rgit.remote('add', self.remote_name, remote_loc)
     
+    def polish_remote_url(self):
+        curr_url = self.repo.remotes[self.remote_name].url
+        polished_url = self.rgit.polish_url(curr_url)
+        self.rgit.remote('set-url', self.remote_name, polished_url)
+            
     def update_git_console(self, command=None, output=None):
         if command is not None:
             self.txaGitConsole += '>> ' + command
@@ -332,9 +360,23 @@ class PyGitLatex(BaseWidget):
             self.update_git_console('git log', self.rgit.log())
         
     def git_pull(self):
-        if self.check_repo(2):
+        if not self.check_repo(2):
+            return
+        try:
             out = self.rgit.pull(self.remote_name, self.branch_name)
             self.update_git_console('git pull', out)
+        except GitCommandError as err:
+            self.check_git_failure(err)
+
+            
+    def git_push(self):
+        if not self.check_repo(2):
+            return
+        try:
+            out = self.rgit.push(self.remote_name, self.branch_name)
+            self.update_git_console('git push', out)
+        except GitCommandError as err:
+            self.check_git_failure(err)
         
     def git_status(self):
         if self.check_repo(1):
